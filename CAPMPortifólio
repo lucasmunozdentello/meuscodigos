@@ -1,0 +1,67 @@
+import pandas as pd
+import numpy as np
+from pandas_datareader import data
+import pandas_datareader.data as web
+!pip install yfinance --upgrade --no-cache-dir
+import yfinance as yf
+yf.pdr_override()
+
+#COLOCAR OS ATIVOS EM LISTA, TODOS COMO STRING (ENTRE ''), EXATAMENTE COMO ESTÃO NO SITE DO YAHOO FINANÇAS
+#COLOCAR COMO PRIMEIRO ATIVO O BOVA11.SA, OU O ATIVO REFERENCIAL PARA O CAPM
+#COLOCAR OS PESOS COMO LISTA DE DECIMAIS COM SOMA = 1
+
+def CAPM_carteira(ativos=[],pesos=[]):
+
+  #essa primeira parte da função trata de pegar os preços dos ativos escolhidos desde o período maximo até o dia atual:
+  acoes = ativos
+  referencial = acoes[0]
+  df = pd.DataFrame()
+  for i in acoes:
+    df[i]=web.get_data_yahoo(i,period='3y')['Adj Close']
+
+  
+  #então criamos um dataframe normalizado, que é obtido pela divisão dos valores pelo valor inicial de cada coluna:
+  df_norm = pd.DataFrame()
+  for i in df.columns:
+    df_norm[i] = df[i]/df[i][0]
+  
+  #a partir daí criamos um dataframe com os retornos simples dos ativos, que é obtido pela divisão entre o preço normalizado
+  #do ativo pelo preço normalizado do dia anterior:
+  df_rs = pd.DataFrame()
+  for i in df_norm.columns:
+    df_rs[i] = (df_norm[i]/df_norm[i].shift(1))-1
+  df_rs.fillna(0,inplace=True)  
+  
+  #agora calculamos os parâmetros alfa, beta e o capm para cada um dos ativos e guardamos no dataframe alfasebetas:
+  colunas = df_rs.columns[1:]
+  alfas = []
+  betas = []
+  capms = []
+  acoes = colunas
+
+  for i in acoes:
+    beta,alfa = np.polyfit(x=df_rs[referencial],y=df_rs[i],deg=1)
+    capm = beta * (df_rs[i].mean() * 246)
+    alfas.append(alfa*100)
+    betas.append(beta)
+    capms.append(capm)
+  alfasebetas = pd.DataFrame()
+  alfasebetas['Ações'] = acoes
+  alfasebetas['Alfa'] = alfas
+  alfasebetas['Beta'] = betas
+  alfasebetas['CAPM'] = capms
+  alfasebetas
+  
+  #por último, calculamos o CAPM total da carteira, com base nos pesos de entrada da função, e multiplicamos por 100 para ficar em porcentagem
+  pesos = np.array(pesos)
+  capmtotal = np.sum(alfasebetas['CAPM'] * pesos)*100
+  
+  return alfasebetas,capmtotal
+#alfasebetas retorna o dataframe com cada ativo e os respectivos alfa, beta e CAPM
+#capmtotal retorna o capm total da carteira com os pesos estabelecidos
+
+
+#Agora é só rodar a função com os ativos que você quiser (lembrando sempre de colocar o referencial em primeiro na entrada) e colocar os pesos
+#adequadamente, SEM ATRIBUIR pesos ao referencial.
+#OBS: O período de análise é de 3 anos. Pode ser alterado no lugar de 3y colocar 5y, 6y, quanto quiser. O problema existe quando se escolhe ativos
+#que não possuem tanto tempo de histórico, o que resulta em erro na função. Portanto deve-se pegar um período que seja comum a todos os ativos.
