@@ -41,7 +41,7 @@ def ARIMA(ativo,dias):
   aleatorio = decomposicao.resid
 
   #Aqui usamos como base de dados toda a base que importamos, e colocamos para prever os 
-  #preços dos próximos 30 dias com base neles.
+  #preços dos próximos "dias" dias com base neles.
   modelo=auto_arima(time_series,suppress_warnings=True,error_action='ignore')
 
   previsoes = modelo.predict(n_periods=dias)
