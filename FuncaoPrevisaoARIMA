@@ -1,0 +1,78 @@
+import pandas as pd
+import numpy as np
+import math
+import matplotlib.pyplot as plt
+from pandas_datareader import data
+!pip install pmdarima
+from pmdarima.arima import auto_arima
+import datetime
+from statsmodels.tsa.seasonal import seasonal_decompose
+import pandas_datareader.data as web
+!pip install yfinance --upgrade --no-cache-dir
+import yfinance as yf
+yf.pdr_override()
+
+def ARIMA(ativo,dias):
+  #Colocar dados em uma serie temporal é simplesmente trocar o index do df
+  #por datas em ordem. Quando importamos do yahoo já vem nesse modelo.
+  acoes=[ativo]
+  df = pd.DataFrame()
+  for i in acoes:
+    df[i]=web.get_data_yahoo(i,period='max')['Adj Close']
+  time_series = df[ativo]
+
+  #O período deve ser colocado quando a variável x não possui frequência, ou seja, não se repete, como aqui
+  #é o caso: nenhuma data aparece mais de uma vez. Portanto, colocamos period=len(time_series)/2, que é o máximo aceitavel
+
+  #Decomposição da série temporal é para captar:
+
+  #Tendência: se vai subir ou descer.
+
+  #Efeito Sazonal: épocas em que se tem aumento ou queda nos valores
+  #(interessante para analisar empresas específicas que aumentam suas vendas nos
+  #períodos de final de ano e de início de ano, por exemplo.)
+
+  #Dados residuais: não são tendencias e nem movimentos sazonais; são dados que não
+  #foram utilizados para previsão.
+
+  decomposicao = seasonal_decompose(time_series,period=len(df)//2)
+  tendencia = decomposicao.trend
+  sazonal = decomposicao.seasonal
+  aleatorio = decomposicao.resid
+
+  #Aqui usamos como base de dados toda a base que importamos, e colocamos para prever os 
+  #preços dos próximos 30 dias com base neles.
+  modelo=auto_arima(time_series,suppress_warnings=True,error_action='ignore')
+
+  previsoes = modelo.predict(n_periods=dias)
+
+  precos = df.to_csv('df.csv')
+  precos = pd.read_csv('df.csv')
+  precos.drop(labels='Date',axis=1,inplace=True)
+
+  indices = []
+  prev = pd.DataFrame()
+  prev['previsao'] = previsoes
+
+  for i in range(0,dias):
+    indices.append(len(precos)+i)
+
+  prev.index = indices
+
+
+  plt.figure(figsize=(13,13))
+  plt.plot(prev['previsao'],label='Apenas previsão')
+  plt.legend();
+
+  plt.figure(figsize=(13,13))
+  plt.plot(prev['previsao'],label='Previsão')
+  plt.plot(precos[ativo],label='Preços')
+  plt.legend();
+
+  plt.figure(figsize=(13,13))
+  plt.plot(tendencia,label='Tendência')
+  plt.plot(sazonal,label='Sazonal')
+  plt.plot(aleatorio,label='Residual')
+  plt.legend();  
+
+  return ;
